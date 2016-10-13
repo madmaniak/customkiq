@@ -1,0 +1,28 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    byebug (9.0.5)
+    concurrent-ruby (1.0.2)
+    connection_pool (2.2.0)
+    rack (2.0.1)
+    rack-protection (1.5.3)
+      rack
+    redis (3.3.1)
+    redis-namespace (1.5.2)
+      redis (~> 3.0, >= 3.0.4)
+    sidekiq (4.2.2)
+      concurrent-ruby (~> 1.0)
+      connection_pool (~> 2.2, >= 2.2.0)
+      rack-protection (~> 1.5)
+      redis (~> 3.2, >= 3.2.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  byebug
+  redis-namespace
+  sidekiq
+
+BUNDLED WITH
+   1.12.5
