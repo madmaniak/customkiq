@@ -55,8 +55,8 @@ class TestRetryJobs < Minitest::Test
         it "changes default configuration to the matched one from the rescue" do
           result = attempt_retry(NetworkError.new)
           refute_equal worker.sidekiq_options_hash, result
-          assert_equal result['retry'], worker.sidekiq_options_hash['rescue'][:NetworkError][:retry]
-          assert_equal result['dead'], worker.sidekiq_options_hash['rescue'][:NetworkError][:dead]
+          assert_equal worker.sidekiq_options_hash['rescue'][:NetworkError][:retry], result['retry']
+          assert_equal worker.sidekiq_options_hash['rescue'][:NetworkError][:dead], result['dead']
         end
       end
 
@@ -70,13 +70,13 @@ class TestRetryJobs < Minitest::Test
 
       describe "error doesn't match" do
         it "leaves default behavior" do
-          assert_equal delay_for(Exception.new), 13
+          assert_equal 13, delay_for(Exception.new)
         end
       end
 
       describe "error match rescue configuration" do
         it "returns number defined in rescue configuration" do
-          assert_equal delay_for(NetworkError.new), 60
+          assert_equal 60, delay_for(NetworkError.new)
         end
       end
 
