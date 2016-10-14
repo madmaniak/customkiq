@@ -1,61 +1,85 @@
-require_relative 'helper'
+require 'minitest/autorun'
 require_relative '../customkiq/retry_jobs'
-require_relative '../jobs/rather_not_useful'
 
-Sidekiq::Testing.server_middleware do |chain|
-  chain.add Customkiq::RetryJobs
+# <stubs>
+
+module Sidekiq
+  module Middleware
+    module Server
+      class RetryJobs
+        private
+
+        def attempt_retry(worker, msg, queue, exception)
+          msg
+        end
+
+        def delay_for(worker, count, exception)
+          13
+        end
+      end
+    end
+  end
 end
+
+class DummyWorker
+  def sidekiq_options_hash
+    { 'retry' => 5, 'dead' => true, 'rescue' =>
+      { NetworkError:  { retry: 1, dead: false, delay: 60 } }
+    }
+  end
+end
+
+class NetworkError < TypeError; end
+
+# </stubs>
 
 class TestRetryJobs < Minitest::Test
 
-  describe 'you can specify rescue actions depends on error' do
+  describe 'fixes to Sidekiq - you can specify rescue actions depends on an error' do
 
-    before do
-      RetrySet = Sidekiq::RetrySet.new; RetrySet.clear
-      DeadSet  = Sidekiq::DeadSet.new; DeadSet.clear
-    end
+    let(:worker) { DummyWorker.new }
 
-    def ignore_error(error)
-      yield
-    rescue error
-    end
+    describe "attempt_retry" do
 
-    describe "use cases" do
-
-      before do
-        RatherNotUseful.sidekiq_options rescue: {
-          NetworkError:  { retry: 1, dead: false, delay: 5 },
-          NoMethodError: { retry: 0, dead: true }
-        }
+      def attempt_retry(exception)
+        Customkiq::RetryJobs.new.send(:attempt_retry, worker, worker.sidekiq_options_hash, nil, exception)
       end
 
-      it 'on NetworkError retries once after 5 seconds and do not push to dead queue' do
-        RatherNotUseful.perform_async(1) # NetworkError
-
-        assert_equal 0, RetrySet.size
-        ignore_error(NetworkError) { RatherNotUseful.drain }
-        assert_equal 1, RetrySet.size
-        ignore_error(NetworkError) { RetrySet.retry_all }
-        ignore_error(NetworkError) { RatherNotUseful.drain }
-        # assert_equal 0, RetrySet.size
-        # assert_equal 1, DeadSet.size
+      describe "error doesn't match" do
+        it "leaves default behavior" do
+          assert_equal worker.sidekiq_options_hash, attempt_retry(Exception.new)
+        end
       end
 
-      it 'on NoMethodError does not retry and push to dead queue' do
-        RatherNotUseful.perform_async(0) # NoMethodError
+      describe "error match rescue configuration" do
+        it "changes default configuration to the matched one from the rescue" do
+          result = attempt_retry(NetworkError.new)
+          refute_equal worker.sidekiq_options_hash, result
+          assert_equal result['retry'], worker.sidekiq_options_hash['rescue'][:NetworkError][:retry]
+          assert_equal result['dead'], worker.sidekiq_options_hash['rescue'][:NetworkError][:dead]
+        end
       end
 
     end
 
-    describe 'edge cases' do
-      before do
-        RatherNotUseful.sidekiq_options retry: false
+    describe 'delay_for' do
+
+      def delay_for(exception)
+        Customkiq::RetryJobs.new.send(:delay_for, worker, nil, exception)
       end
 
-      it 'ignores rescue options and neither retries nor moves to dead queue in all cases' do
+      describe "error doesn't match" do
+        it "leaves default behavior" do
+          assert_equal delay_for(Exception.new), 13
+        end
       end
+
+      describe "error match rescue configuration" do
+        it "returns number defined in rescue configuration" do
+          assert_equal delay_for(NetworkError.new), 60
+        end
+      end
+
     end
-
   end
-
 end
