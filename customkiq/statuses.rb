@@ -44,7 +44,7 @@ module Customkiq
 
         def call(worker_class, item, queue, redis_pool)
           result = yield
-          Customkiq::Statuses::Queued.handle_change(worker_class, item, queue, redis_pool)
+          Queued.handle_change(worker_class, item, queue, redis_pool)
           result
         end
 
